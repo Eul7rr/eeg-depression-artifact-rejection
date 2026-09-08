@@ -1,4 +1,5 @@
 # A Comparative Study of Artifact Rejection Methods for EEG-Based Depression Detection
+[![DOI](https://zenodo.org/badge/1361276584.svg)](https://doi.org/10.5281/zenodo.22658807)
 
 This repository contains the complete, reproducible analysis pipeline for a 
 study comparing four artifact handling strategies—no removal, and three ICA 
