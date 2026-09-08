@@ -1,0 +1,11 @@
+# 数据与缓存
+ds003478/
+data/
+features/
+*.npy
+*.log
+
+# 系统与IDE
+__pycache__/
+.idea/
+.DS_Store
