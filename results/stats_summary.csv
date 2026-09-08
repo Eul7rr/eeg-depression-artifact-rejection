@@ -1,4 +1,4 @@
-comparison,b,c,p_value,significant_0.05
-none vs infomax,12,1,0.00341796875,True
-none vs fastica,10,0,0.001953125,True
-none vs picard,11,2,0.0224609375,True
+comparison,b,c,p_value,significant_0.05,p_holm
+none vs infomax,12,1,0.00341796875,True,0.0068359375
+none vs fastica,10,0,0.001953125,True,0.005859375
+none vs picard,11,2,0.0224609375,True,0.0224609375

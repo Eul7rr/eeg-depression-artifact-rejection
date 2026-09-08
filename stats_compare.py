@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import binomtest
 from sklearn.metrics import confusion_matrix
+from statsmodels.stats.multitest import multipletests
 
 import config
 import main as m
@@ -99,9 +100,12 @@ def main():
               f"p={pval:.4f}  {note}")
         rows.append({"comparison": f"none vs {method}", "b": b, "c": c,
                      "p_value": pval, "significant_0.05": pval < 0.05})
-    pd.DataFrame(rows).to_csv(config.RESULTS_DIR / "stats_summary.csv",
-                              index=False)
-    print(f"\n已保存到 {config.RESULTS_DIR}: predictions_*.csv 和 stats_summary.csv")
+    df = pd.DataFrame(rows)
+    _, p_holm, _, _ = multipletests(df["p_value"], method="holm")
+    df["p_holm"] = p_holm
+    df.to_csv(config.RESULTS_DIR / "stats_summary.csv", index=False)
+    for cmp_, ph in zip(df["comparison"], df["p_holm"]):
+        print(f"  {cmp_:<20s}  Holm校正后 p = {ph:.4f}")
 
 
 if __name__ == "__main__":
