@@ -1,15 +1,4 @@
-"""
-stats_compare.py —— 统计比较：None vs 三种 ICA（读缓存特征，一两分钟跑完）
-
-做什么：
-  1. 直接读缓存好的特征，重跑 LOSOCV，拿到"每个被试"的预测结果
-  2. 逐被试预测存成 results/predictions_<方法>.csv（论文附录材料）
-  3. McNemar 检验：None 和每种 ICA 的差距是真效应还是运气
-  4. 汇总表存 results/stats_summary.csv
-
-用法（终端，先确认是 (eeg) 环境）：
-    python stats_compare.py
-"""
+"""Statistical comparison: None vs each ICA variant (McNemar exact + Holm)."""
 import numpy as np
 import pandas as pd
 from scipy.stats import binomtest
@@ -22,15 +11,15 @@ from evaluation import run_losocv
 
 
 def load_cached_dataset(groups, method):
-    """和 main.build_dataset 全量模式完全同序，但从缓存读特征，秒回。"""
+    """Same subject order as main.build_dataset (full mode), but from cache."""
     dep = [s for s, v in sorted(groups.items()) if v == 1]
     ctl = [s for s, v in sorted(groups.items()) if v == 0]
     subs, X, y = [], [], []
     for sub in dep + ctl:
         try:
-            feats = m.get_features(sub, method)   # 缓存命中，不会重算
+            feats = m.get_features(sub, method)
         except Exception as e:
-            print(f"  [跳过] {sub}: {e}")
+            print(f"  [skip] {sub}: {e}")
             continue
         subs.append(sub)
         X.append(feats)
@@ -39,7 +28,7 @@ def load_cached_dataset(groups, method):
 
 
 def summarize(yt, yp):
-    """从逐被试预测算四个指标。"""
+    """Accuracy, sensitivity, specificity, balanced accuracy from predictions."""
     tn, fp, fn, tp = confusion_matrix(yt, yp, labels=[0, 1]).ravel()
     acc = (tp + tn) / len(yt)
     sens = tp / (tp + fn) if tp + fn else float("nan")
@@ -51,16 +40,14 @@ def summarize(yt, yp):
 def main():
     groups = m.load_groups()
 
-    # 第一步：四种方法各跑一遍 LOSOCV，收逐被试预测
-    store = {}   # method -> (subs, y_true, y_pred)
+    store = {}  # method -> (subs, y_true, y_pred)
     for method in config.METHODS:
-        print(f"\n===== 方法: {method} =====")
+        print(f"\n===== method: {method} =====")
         subs, X, y = load_cached_dataset(groups, method)
         res = run_losocv(X, y)
         if "y_true" not in res or "y_pred" not in res:
             raise KeyError(
-                f"run_losocv 的返回里没有 y_true / y_pred，"
-                f"实际键为: {list(res.keys())} —— 把这行原样发给我"
+                f"run_losocv returned no y_true/y_pred; keys: {list(res.keys())}"
             )
         yt, yp = np.asarray(res["y_true"]), np.asarray(res["y_pred"])
         store[method] = (subs, yt, yp)
@@ -70,12 +57,12 @@ def main():
         pd.DataFrame({"subject": subs, "y_true": yt, "y_pred": yp}).to_csv(
             config.RESULTS_DIR / f"predictions_{method}.csv", index=False)
 
-    # 第二步：McNemar 检验——None 当基准，和每种 ICA 两两比较
+    # McNemar compares discordant pairs only:
+    # b = correct under None but wrong under ICA; c = the reverse.
     base_subs, base_yt, base_yp = store["none"]
     base_correct = dict(zip(base_subs, base_yp == base_yt))
 
-    print("\n===== McNemar 检验：None vs ICA =====")
-    print("(b = None 猜对而 ICA 猜错的人数；c = ICA 猜对而 None 猜错的人数)")
+    print("\n===== McNemar: None vs ICA =====")
     rows = []
     for method in config.METHODS:
         if method == "none":
@@ -92,20 +79,22 @@ def main():
             elif ica_ok and not none_ok:
                 c += 1
         if b + c == 0:
-            pval, note = float("nan"), "两法完全一致"
+            pval, note = float("nan"), "identical predictions"
         else:
             pval = binomtest(b, b + c, 0.5).pvalue
-            note = "差异显著" if pval < 0.05 else "差异不显著"
+            note = "significant" if pval < 0.05 else "n.s."
         print(f"  none vs {method:<8s}  b={b:2d}  c={c:2d}  "
               f"p={pval:.4f}  {note}")
         rows.append({"comparison": f"none vs {method}", "b": b, "c": c,
                      "p_value": pval, "significant_0.05": pval < 0.05})
+
+    # Holm-adjust across the three comparisons; keep raw and adjusted side by side
     df = pd.DataFrame(rows)
     _, p_holm, _, _ = multipletests(df["p_value"], method="holm")
     df["p_holm"] = p_holm
     df.to_csv(config.RESULTS_DIR / "stats_summary.csv", index=False)
     for cmp_, ph in zip(df["comparison"], df["p_holm"]):
-        print(f"  {cmp_:<20s}  Holm校正后 p = {ph:.4f}")
+        print(f"  {cmp_:<20s}  Holm-adjusted p = {ph:.4f}")
 
 
 if __name__ == "__main__":

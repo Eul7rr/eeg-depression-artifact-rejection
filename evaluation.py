@@ -1,8 +1,4 @@
-"""
-evaluation.py
-SVM（线性核, C=1.0）+ 严格留一被试交叉验证 (LOSOCV)。
-填补缺失值和标准化都放在 Pipeline 里：每一折只用训练集拟合，杜绝信息泄漏。
-"""
+"""Linear SVM (C=1.0) under strict leave-one-subject-out cross-validation."""
 import numpy as np
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.pipeline import Pipeline
@@ -14,8 +10,10 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 
 def run_losocv(X: np.ndarray, y: np.ndarray) -> dict:
     logo = LeaveOneGroupOut()
-    groups = np.arange(len(y))        # 每个被试自成一组 → 留一被试
+    groups = np.arange(len(y))  # one group per subject -> leave-one-subject-out
 
+    # Imputation and scaling live inside the Pipeline so each fold fits them
+    # on training data only — fitting them upstream would leak test information.
     pipe = Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
         ("scaler", StandardScaler()),
@@ -31,7 +29,7 @@ def run_losocv(X: np.ndarray, y: np.ndarray) -> dict:
         y_score.append(pipe.decision_function(X[test_idx])[0])
     y_true, y_pred = np.array(y_true), np.array(y_pred)
 
-    cm = confusion_matrix(y_true, y_pred, labels=[0, 1])   # [[TN, FP], [FN, TP]]
+    cm = confusion_matrix(y_true, y_pred, labels=[0, 1])  # [[TN, FP], [FN, TP]]
     tn, fp, fn, tp = cm.ravel()
     return {
         "accuracy": accuracy_score(y_true, y_pred),

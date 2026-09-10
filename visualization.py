@@ -1,7 +1,4 @@
-"""
-visualization.py
-绘制四种方法 Accuracy / Sensitivity / Specificity 分组柱状图，保存 300 dpi PNG。
-"""
+"""Grouped bar chart of accuracy / sensitivity / specificity across methods."""
 import numpy as np
 import matplotlib.pyplot as plt
 

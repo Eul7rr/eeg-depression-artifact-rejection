@@ -1,22 +1,21 @@
-"""特征提取：19 通道 × 4 频带 = 76 维 log 功率"""
+"""Feature extraction: 19 channels x 4 bands = 76-dim log-band-power vector."""
 import numpy as np
 from scipy.signal import welch
 
 import config
 
 try:
-    from numpy import trapezoid as _trapz      # numpy >= 2.0
+    from numpy import trapezoid as _trapz      # NumPy >= 2.0
 except ImportError:
-    from numpy import trapz as _trapz          # numpy < 2.0
+    from numpy import trapz as _trapz          # NumPy < 2.0
 
 
 def _resolve_picks(raw):
-    """按 config.CHANNELS_1020 的顺序，找出每个通道在 raw 里的下标。
+    """Map config.CHANNELS_1020 to channel indices in raw.
 
-    - 大小写不敏感：这个数据集的通道名是全大写（FP1/FZ/CZ/PZ），
-      而我们的名单是标准写法（Fp1/Fz/...），必须忽略大小写匹配。
-    - 兼容新旧命名别名（如 T3=T7），见 config.CHANNEL_ALIASES。
-    - 找不到就返回 None（由 extract_features 统一报错）。
+    Case-insensitive: this dataset names channels in all caps (FP1/FZ/CZ).
+    Alias-aware: old 10-20 names (T3/T4/T5/T6) map to new ones via config.
+    Unresolved channels become None; the caller decides how to fail.
     """
     lower_to_name = {ch.lower(): ch for ch in raw.ch_names}
     resolved = []
@@ -35,18 +34,18 @@ def _resolve_picks(raw):
 
 
 def extract_features(raw):
-    """raw（已预处理）→ 76 维特征向量（log10 功率）"""
+    """Preprocessed raw -> 76-dim feature vector (log10 band power)."""
     resolved = _resolve_picks(raw)
 
-    # 宁可大声报错，也不静默产出 NaN：缺一个通道都直接失败
+    # Fail loudly: a silently misaligned feature vector is worse than no vector
     missing = [ch for ch, idx in zip(config.CHANNELS_1020, resolved) if idx is None]
     if missing:
         raise RuntimeError(
-            f"找不到通道 {missing}；这份数据实际有：{raw.ch_names}"
+            f"channels not found: {missing}; available: {raw.ch_names}"
         )
 
     sfreq = raw.info["sfreq"]
-    n_per_seg = min(int(sfreq * 4), raw.n_times)   # 4 秒窗
+    n_per_seg = min(int(sfreq * 4), raw.n_times)  # 4-s Welch segments
     n_overlap = n_per_seg // 2
 
     feats = []
