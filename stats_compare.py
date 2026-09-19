@@ -9,6 +9,9 @@ import config
 import main as m
 from evaluation import run_losocv
 
+def main():
+    print(f"dataset={config.DATASET}")   # 先自报家门，防止拿错数据集
+    groups = m.load_groups()
 
 def load_cached_dataset(groups, method):
     """Same subject order as main.build_dataset (full mode), but from cache."""

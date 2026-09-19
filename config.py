@@ -1,9 +1,8 @@
 """Global configuration: dataset switch, shared preprocessing/feature/experiment params."""
 from pathlib import Path
 
-# ---------- dataset switch ----------
-# "ds003478" -> original experiment; "modma" -> external validation
-DATASET = "ds003478"
+
+DATASET = "modma"
 
 # ---------- shared paths ----------
 RESULTS_DIR = Path(__file__).parent / "results" / DATASET  # per-dataset results

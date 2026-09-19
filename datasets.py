@@ -92,21 +92,21 @@ class MODMA:
     subject_id = .mat filename stem (e.g. "0201xx").
     """
 
-    DATA_DIR = Path.home() / "Data" / "MODMA" / "EEG_128channels_resting_lanzhou_2015"
-    NOTCH_FREQ = 50.0          # recorded in China (50 Hz mains)
-    SFREQ = 250.0              # native sampling rate; no resampling needed
-    INFO_XLSX = "subjects_information_EEG_128channels_resting_lanzhou_2015.xlsx"
+    DATA_DIR = Path("~/Data/MODMA/EEG_128channels_resting_lanzhou_2015").expanduser()
+    INFO_XLSX = DATA_DIR / "subjects_information_EEG_128channels_resting_lanzhou_2015.xlsx"
+    SFREQ = 250.0  # sampling rate stated in the dataset documentation
+    NOTCH_FREQ = 50.0  # China mains
 
-    @staticmethod
-    def _subject_table() -> pd.DataFrame:
-        df = pd.read_excel(MODMA.DATA_DIR / MODMA.INFO_XLSX)
-        mats = sorted(MODMA.DATA_DIR.glob("*.mat"))
-        if len(df) != len(mats):
-            raise RuntimeError(
-                f"xlsx has {len(df)} rows but found {len(mats)} .mat files; "
-                "check the folder before trusting any label")
-        df = df.copy()
-        df["subject_id"] = [p.stem for p in mats]  # row i <-> i-th sorted .mat
+    @classmethod
+    def _subject_table(cls):
+        mats = sorted(cls.DATA_DIR.glob("*.mat"))
+        df = pd.read_excel(cls.INFO_XLSX)
+        # xlsx stores ids as ints (leading zero dropped); filenames start with the 8-digit id
+        df["sid"] = df["subject id"].astype(int).map("{:08d}".format)
+        path_by_id = {p.name[:8]: p for p in mats}
+        assert len(path_by_id) == len(mats), "duplicate subject id among .mat files"
+        assert set(df["sid"]) == set(path_by_id), "xlsx rows and .mat files do not match"
+        df["subject_id"] = df["sid"].map(lambda s: path_by_id[s].stem)
         return df
 
     @staticmethod
@@ -156,6 +156,9 @@ class MODMA:
         info = mne.create_info(ch_names, sfreq=MODMA.SFREQ, ch_types="eeg")
         raw = mne.io.RawArray(data, info, verbose=False)
         raw.set_montage(montage, on_missing="ignore")
+        if "Cz" in raw.ch_names and np.allclose(raw.get_data(picks="Cz"), 0.0, atol=1e-12):
+            raw.drop_channels(["Cz"])
+            print(f"      [montage] {subject_id}: reference row Cz is all zeros - dropped")
         return MODMA._rename_to_1020(raw)
 
     @staticmethod
@@ -171,6 +174,9 @@ class MODMA:
             .get_positions()["ch_pos"]
         mapping, used = {}, set()
         for target in config.CHANNELS_1020:
+            if target in raw.ch_names:
+                used.add(target)
+                continue
             tp = std_pos[target]
             free = {ch: p for ch, p in egi_pos.items() if ch not in used}
             best = min(free, key=lambda ch: np.linalg.norm(free[ch] - tp))

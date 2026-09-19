@@ -16,7 +16,7 @@ from scipy.io import loadmat
 import config
 from datasets import MODMA
 
-assert config.DATASET == "modma",
+assert config.DATASET == "modma"
 root = MODMA.DATA_DIR
 
 print("== 1) folder layout ==")
